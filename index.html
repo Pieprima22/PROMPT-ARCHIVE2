@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prompt Archive — Digital Vault</title>
+    <style>
+        /* Apple-Inspired Variables */
+        :root {
+            --bg-color: #ffffff;
+            --secondary-bg: #f5f5f7;
+            --accent: #0071e3;
+            --text-main: #1d1d1f;
+            --text-secondary: #86868b;
+            --glass: rgba(255, 255, 255, 0.85);
+            --radius-lg: 24px;
+            --radius-sm: 14px;
+            --ease: cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        @keyframes pageIn {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+            margin: 0; background-color: var(--bg-color); color: var(--text-main);
+            -webkit-font-smoothing: antialiased; overflow-x: hidden;
+            overflow-y: scroll; /* THIS FIXES THE SCROLLBAR JUMP */
+        }
+        .page { 
+            display: none; padding: 120px 10% 80px; min-height: 100vh; box-sizing: border-box; 
+            animation: pageIn 0.5s var(--ease); 
+        }
+        .active-page { display: block; }
+
+        /* Navigation */
+        nav {
+            position: fixed; top: 0; width: 100%; height: 64px;
+            background: var(--glass); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: blur(20px);
+            z-index: 100; display: flex; align-items: center; justify-content: space-between;
+            padding: 0 10%; box-sizing: border-box; border-bottom: 0.5px solid rgba(0,0,0,0.08);
+        }
+        .logo { font-weight: 700; font-size: 19px; letter-spacing: -0.5px; cursor: pointer; }
+
+        .btn { padding: 10px 22px; border-radius: 20px; font-weight: 600; font-size: 14px; cursor: pointer; border: none; transition: 0.3s; }
+        .btn-black { background: var(--text-main); color: white; }
+        .btn-black:hover { opacity: 0.85; transform: translateY(-1px); }
+        .back-btn { background: var(--secondary-bg); color: var(--text-main); }
+        .back-btn:hover { background: #e8e8ed; }
+
+        /* --- HOME PAGE (SEARCH ONLY) --- */
+        .search-wrapper { max-width: 550px; margin: 80px auto 0; text-align: center; position: relative; }
+        .hero-title { font-size: 56px; letter-spacing: -2px; margin-bottom: 25px; font-weight: 700; }
+        
+        .search-bar {
+            width: 100%; padding: 20px 28px; border-radius: var(--radius-sm);
+            border: 1px solid transparent; background: var(--secondary-bg); font-size: 19px; 
+            outline: none; transition: all 0.3s var(--ease); box-sizing: border-box;
+        }
+        .search-bar:focus { background: #fff; border-color: #d2d2d7; box-shadow: 0 8px 24px rgba(0,0,0,0.06); }
+
+        /* Floating Suggestions Dropdown */
+        .suggestions-box {
+            position: absolute; top: 185px; left: 0; width: 100%;
+            background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(25px);
+            border-radius: var(--radius-sm); border: 1px solid rgba(0,0,0,0.08);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1); overflow: hidden; 
+            display: none; z-index: 10; text-align: left;
+        }
+        .suggestion-item {
+            padding: 15px 25px; cursor: pointer; border-bottom: 0.5px solid rgba(0,0,0,0.05);
+            font-size: 15px; transition: 0.2s; text-transform: uppercase; font-weight: 600; color: var(--text-secondary);
+        }
+        .suggestion-item:last-child { border-bottom: none; }
+        .suggestion-item:hover { background: var(--secondary-bg); color: var(--text-main); }
+
+        /* --- FIXED STATIC HINTS --- */
+        .hint-text { 
+            margin-top: 25px; font-size: 13px; color: var(--text-secondary); 
+            font-weight: 500; display: flex; flex-wrap: wrap; 
+            justify-content: center; align-items: center; gap: 10px; 
+        }
+        .hint-tag { 
+            padding: 8px 16px; background: var(--secondary-bg); border-radius: 8px; 
+            cursor: pointer; transition: 0.2s; font-weight: 600; font-size: 12px; 
+            text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .hint-tag:hover { background: #e8e8ed; color: var(--text-main); }
+
+        /* --- RESULTS PAGE --- */
+        .results-header-container { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid #eee; padding-bottom: 15px; margin-bottom: 30px; }
+        .results-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 30px; }
+        
+        /* --- FIXED CARD & IMAGE GLITCH --- */
+        .card { 
+            cursor: pointer; transition: transform 0.4s var(--ease); 
+            border-radius: var(--radius-lg); position: relative; 
+            min-width: 0; 
+        }
+        .card:hover { transform: translateY(-6px); }
+        .card-img-wrapper {
+            width: 100%; 
+            aspect-ratio: 4 / 3; 
+            border-radius: var(--radius-lg); 
+            overflow: hidden; 
+            background: var(--secondary-bg); 
+            position: relative;
+            border: 1px solid rgba(0,0,0,0.04);
+            transform: translateZ(0); 
+            -webkit-mask-image: -webkit-radial-gradient(white, black);
+        }
+        .card img { 
+            display: block; width: 100%; height: 100%; 
+            object-fit: cover; object-position: center; 
+            transition: transform 0.6s var(--ease); 
+            will-change: transform;
+        }
+        .card:hover img { transform: scale(1.04); }
+        
+        .card-badge {
+            position: absolute; top: 12px; left: 12px; background: rgba(255,255,255,0.85);
+            backdrop-filter: blur(10px); padding: 6px 12px; border-radius: 12px;
+            font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;
+            color: var(--text-main); z-index: 2; box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+        .card-title { 
+            margin-top: 15px; 
+            font-weight: 600; 
+            font-size: 15px; 
+            letter-spacing: -0.2px; 
+            padding: 0 5px; 
+            text-transform: uppercase; 
+            word-break: break-word;
+        }
+
+    /* --- DETAIL PAGE CAROUSEL (PORTRAIT SUPPORT, NO BOX) --- */
+       /* --- DETAIL PAGE (PERFECT ALIGNMENT) --- */
+        .detail-header-grid { 
+            display: grid; 
+            grid-template-columns: 1.2fr 1fr; 
+            gap: 60px; 
+            margin-bottom: 12px; /* Space between title and the box/image */
+            align-items: end; 
+        }
+
+        .detail-container { 
+            display: grid; 
+            grid-template-columns: 1.2fr 1fr; 
+            gap: 60px; 
+            align-items: flex-start; /* Pins image and box to the ceiling */
+        }        
+        
+        .carousel-container {
+            position: relative; 
+            width: 100%; 
+            display: flex; 
+            align-items: flex-start; 
+            justify-content: center;
+            background: transparent;
+            border: none;
+            padding-bottom: 40px; 
+            /* Removed top padding so it hits the absolute top */
+        }
+        
+       .carousel-img {
+            max-width: calc(100% - 60px); 
+            max-height: 80vh; 
+            width: auto;
+            height: auto;
+            display: block; 
+            view-transition-name: gallery-image;
+            border-radius: 8px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.1);
+        }
+        /* Forward direction (Next) */
+        html.slide-next ::view-transition-old(gallery-image) {
+            animation: slide-out-left 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        html.slide-next ::view-transition-new(gallery-image) {
+            animation: slide-in-right 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        /* Backward direction (Prev) */
+        html.slide-prev ::view-transition-old(gallery-image) {
+            animation: slide-out-right 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+        html.slide-prev ::view-transition-new(gallery-image) {
+            animation: slide-in-left 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        }
+
+        /* The Smooth Slide Animations */
+        @keyframes slide-in-right {
+            from { transform: translateX(100px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slide-out-left {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(-100px); opacity: 0; }
+        }
+        @keyframes slide-in-left {
+            from { transform: translateX(-100px); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes slide-out-right {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100px); opacity: 0; }
+        }
+        
+        .carousel-btn {
+            position: absolute; top: 50%; transform: translateY(-50%);
+            background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(10px);
+            border: none; width: 44px; height: 44px; border-radius: 50%;
+            font-size: 18px; color: var(--text-main); cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1); display: flex; 
+            align-items: center; justify-content: center; transition: 0.2s; z-index: 10;
+        }
+        .carousel-btn:hover { background: #fff; transform: translateY(-50%) scale(1.08); }
+        .carousel-btn.prev { left: 15px; }
+        .carousel-btn.next { right: 15px; }
+        
+        .carousel-dots {
+            position: absolute; bottom: 15px; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 8px; z-index: 10;
+        }
+        .dot {
+            width: 8px; height: 8px; border-radius: 50%; background: rgba(0,0,0,0.2);
+            cursor: pointer; transition: 0.3s;
+        }
+        .dot.active { background: var(--text-main); transform: scale(1.2); }
+        
+        /* --- OPTIONS TABS --- */
+        .options-bar { 
+            display: flex; gap: 10px; margin-bottom: 15px; flex-wrap: wrap; 
+        }
+        .option-btn {
+            padding: 8px 16px; border-radius: 8px; font-size: 13px; font-weight: 600;
+            cursor: pointer; background: var(--secondary-bg); color: var(--text-secondary);
+            border: 1px solid transparent; transition: 0.2s; text-transform: uppercase;
+        }
+        .option-btn:hover { background: #e8e8ed; color: var(--text-main); }
+        .option-btn.active {
+            background: var(--text-main); color: #fff; border-color: var(--text-main);
+        }
+        .prompt-panel { position: sticky; top: 100px; }
+        
+        .prompt-box { 
+            background: var(--secondary-bg); 
+            padding: 30px 85px 30px 30px; 
+            border-radius: var(--radius-lg); 
+            line-height: 1.6; font-size: 15px; 
+            margin-top: 0; /* Set to 0 so it perfectly matches the image height */
+            position: relative;
+        }
+        
+        .copy-btn {
+            position: absolute; top: 15px; right: 15px; background: #fff; border: 1px solid #ddd;
+            padding: 6px 12px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer;
+            transition: 0.2s; color: var(--text-main); box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+        .copy-btn:hover { background: #f0f0f0; }
+        .copy-btn.copied { background: #34c759; color: white; border-color: #34c759; }
+
+        /* --- SUBMIT PAGE --- */
+        .form-card { max-width: 700px; margin: 0 auto; background: #fff; }
+        .form-row { display: flex; flex-direction: column; margin-bottom: 25px; }
+        .split-input { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+        label { font-size: 11px; font-weight: 700; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase; }
+        .input-field { padding: 15px; border-radius: 12px; border: 1px solid #e5e5e7; background: var(--secondary-bg); font-size: 16px; outline: none; transition: 0.3s; }
+        .input-field:focus { border-color: var(--accent); background: #fff; }
+
+        #loading-overlay { 
+            display: none; position: fixed; inset: 0; background: rgba(255,255,255,0.85); 
+            backdrop-filter: blur(15px); z-index: 1000; justify-content: center; 
+            align-items: center; font-weight: 600; letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <div class="logo" onclick="goHome()">PROMPT ARCHIVE</div>
+        <button class="btn btn-black" onclick="goToSubmit()">Submit New</button>
+    </nav>
+
+    <div id="loading-overlay">SYNCING WITH CLOUD...</div>
+
+    <div id="home-page" class="page active-page">
+        <div class="search-wrapper">
+            <h1 class="hero-title">prompt.</h1>
+            <input type="text" id="search-input" class="search-bar" placeholder="Search architecture, sketch..." autocomplete="off">
+            <div id="suggestions" class="suggestions-box"></div>
+            
+            <div class="hint-text">
+                <span style="font-weight: 600;">Quick Explore:</span> 
+                <span class="hint-tag" onclick="quickSearch('sketch')">Sketch</span>
+                <span class="hint-tag" onclick="quickSearch('relighting')">Relighting</span>
+                <span class="hint-tag" onclick="quickSearch('projects')">Projects</span>
+                <span class="hint-tag" onclick="quickSearch('animation')">Animation</span>
+            </div>
+        </div>
+    </div>
+
+    <div id="results-page" class="page">
+        <div class="results-header-container">
+            <h2 id="results-header" style="font-size: 32px; letter-spacing: -1px; margin: 0; text-transform: uppercase;">RESULTS</h2>
+            <button class="btn back-btn" onclick="goHome()">← Back to Search</button>
+        </div>
+        <div class="results-grid" id="results-grid"></div>
+    </div>
+
+ <div id="detail-page" class="page">
+        
+        <div class="detail-header-grid">
+            <div class="empty-spacer"></div> <div>
+                <h2 id="detail-title" style="margin-top:0; margin-bottom: 5px; font-size: 32px; letter-spacing:-0.5px;">TITLE</h2>
+                <p style="margin: 0; font-size: 13px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 1.2px;">Prompt</p>
+            </div>
+        </div>
+
+        <div class="detail-container">
+            
+            <div class="carousel-container" id="carousel-wrapper">
+                <button class="carousel-btn prev" onclick="changeImage(-1)">&#10094;</button>
+                <img id="main-carousel-img" class="carousel-img" src="" alt="Gallery Image">
+                <button class="carousel-btn next" onclick="changeImage(1)">&#10095;</button>
+                <div class="carousel-dots" id="carousel-dots"></div>
+            </div>
+            
+           <div class="prompt-panel">
+                
+                <div id="detail-options" class="options-bar"></div>
+                
+                <div class="prompt-box">
+                    <button class="copy-btn" onclick="copyPrompt(this)">Copy</button>
+                    <div id="detail-prompt"></div>
+                </div>
+                
+                <div id="detail-meta" style="margin-top:20px; font-size:14px; color:var(--text-secondary); line-height: 1.6;"></div>
+                
+                <div style="margin-top:40px; display: flex; gap: 15px;">
+                    <button class="btn back-btn" onclick="goResults()">← Back to Results</button>
+                    <button id="admin-delete" class="btn" style="color:#ff3b30; background:rgba(255,59,48,0.1); display:none;" onclick="deletePrompt()">Delete Entry</button>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <div id="submit-page" class="page">
+        <div class="form-card">
+            <h2 style="font-size: 32px; margin-bottom: 40px; letter-spacing:-1px;">New Submission</h2>
+            <form id="submit-form" onsubmit="handleFormSubmit(event)">
+                <div class="split-input">
+                    <div class="form-row">
+                        <label>Category Tag</label>
+                        <select class="input-field" id="input-tag" onchange="toggleFormFields()">
+                            <option value="sketch">Sketch</option>
+                            <option value="relighting">Relighting</option>
+                            <option value="projects">Projects</option>
+                            <option value="animation">Animation</option>
+                        </select>
+                    </div>
+                    <div class="form-row">
+                        <label>Entry Title</label>
+                        <input type="text" class="input-field" id="input-title" placeholder="E.g. Brutalist Sketch" required>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <label style="display: flex; justify-content: space-between;">
+                        <span>Thumbnail Image (Upload OR paste link)</span>
+                        <span style="color: #ff3b30; letter-spacing: 0.5px;">MAX 300 KB</span>
+                    </label>
+                    <div class="split-input">
+                        <input type="file" class="input-field" id="input-thumbnail" accept="image/*">
+                        <input type="text" class="input-field" id="input-thumbnail-url" placeholder="https://image-link.com/img.jpg">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <label style="display: flex; justify-content: space-between;">
+                        <span>Gallery (Upload OR paste links)</span>
+                        <span style="color: #ff3b30; letter-spacing: 0.5px;">MAX 5 MB PER FILE</span>
+                    </label>
+                    <input type="file" class="input-field" id="input-image" multiple style="margin-bottom:10px;">
+                    <textarea class="input-field" id="input-gallery-links" placeholder="link1.jpg, link2.jpg" style="height:60px;"></textarea>
+                </div>
+
+                <div class="form-row" id="group-prompt">
+                    <label>The Prompt</label>
+                    <textarea class="input-field" id="input-prompt" placeholder="Paste your AI prompt here..." style="height:120px;"></textarea>
+                </div>
+
+                <div id="group-animation" style="display:none;" class="split-input">
+                    <div class="form-row">
+                        <label>Tool Used</label>
+                        <input type="text" class="input-field" id="input-tools" placeholder="Kling 2.5">
+                    </div>
+                    <div class="form-row">
+                        <label>Duration</label>
+                        <input type="text" class="input-field" id="input-duration" placeholder="5 Seconds">
+                    </div>
+                </div>
+
+                <button type="submit" class="btn btn-black" style="width:100%; padding:18px; margin-top:20px; font-size:16px;">Publish to Cloud</button>
+            </form>
+            <button class="btn back-btn" onclick="goHome()" style="width:100%; margin-top:15px; background:none;">Cancel</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, deleteDoc, doc, query, orderBy } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-storage.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBQjsmi5equgjEY-8qP3ubtNQEp9j8YT9M",
+            authDomain: "prompt-archive-e7055.firebaseapp.com",
+            projectId: "prompt-archive-e7055",
+            storageBucket: "prompt-archive-e7055.firebasestorage.app",
+            messagingSenderId: "962038901250",
+            appId: "1:962038901250:web:a1fa50ee49bbaff768951b"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const storage = getStorage(app);
+
+// 2. RESTORED LOCAL DATABASE'
+    const defaultDatabase = {
+            "sketch": [
+                {
+                    title: "DETAILED WATERCOLOR SKETCH",
+                    thumbnail: "IMAGE/WATERCOLOR/DETAILED WATERCLOR/d thumb.png",
+                    images: ["IMAGE/WATERCOLOR/DETAILED WATERCLOR/D1.png", "IMAGE/WATERCOLOR/DETAILED WATERCLOR/D2.png"],
+                    prompt: "<p>Transform this image to a detailed and sharp hand sketch. Low opacity watercolor. Keep the camera and everything aligned.</p>"
+                },
+                {
+                    title: "BLACK AND WHITE",
+                    thumbnail: "IMAGE/WATERCOLOR/BLACK&WHITE/BW thumb.png",
+                    images: ["IMAGE/WATERCOLOR/BLACK&WHITE/BW1.png", "IMAGE/WATERCOLOR/BLACK&WHITE/BW2.png"],
+                    prompt: `<p>Transform the input image into a grayscale storyboard animatic frame with loose pencil/graphite sketch linework: thin, slightly imperfect strokes, subtle construction lines, light smudging, and minimal shading (simple value blocks only).</p>
+                             <p>Preserve the original composition exactly (same camera angle, framing, perspective, subject positions, proportions, and depth) — no redesign, no added objects, no removal. Simplify materials and textures into readable shapes; prioritize clear silhouettes and strong facial/gesture readability if characters exist.</p>
+                             <p>Backgrounds should be minimal and atmospheric, indicated with light contour lines and soft depth cues; add a few sparse dust/snow specks for texture. Output should feel like a scanned storyboard sheet: slightly soft, organic, and unfinished—not inked, not vector, not photoreal.</p>`
+                },
+                {
+                    title: "LOOSE SKETCH",
+                    thumbnail: "IMAGE/WATERCOLOR/LOOSE SKETCH/LS thumb.png",
+                    images: ["IMAGE/WATERCOLOR/LOOSE SKETCH/LS2.png"],
+                    prompt: `<p>Turn the image into a sketch-style illustration with flat colors. Maintain the original composition and perspective..</p>
+                             <p>Use clean, confident linework, slightly varied in thickness to show depth. Apply flat, even color blocks with minimal shading — no gradients.</p>
+                             <p>Keep the overall look simple, graphic, and modern, similar to editorial illustration styles.Preserve key details so the subject remains recognizable. Perfectly aligned with the current image. </p>`
+                },
+            ],
+            "relighting": [
+                {
+                    title: "NIGHT TO DAY",
+                    thumbnail: "IMAGE/RELLIGHTING/NIGHTTODAY/NTD THUMNAIL.png",
+                    images: ["IMAGE/RELLIGHTING/NIGHTTODAY/N1.png", "IMAGE/RELLIGHTING/NIGHTTODAY/N1 SK.png", "IMAGE/RELLIGHTING/NIGHTTODAY/ND1.png"],
+                    prompt: `<strong>STEP 1 - TRANSFORM THE IMAGE TO SKETCH</strong>
+                             <p>Transform this image to a detailed and sharp hand sketch. Low opacity water color. Keep the camera and everything aligned.</p>
+                             <strong>STEP 2 - TRANSFORM SKETCH STYE TO RELISTIC</strong>
+                             <p>Transform this sketch into a hyper-realistic luxury Najdi building entrance in golden hour afternoon scene. Create warm, soft sunlight with rich amber tones illuminating, vegetation, and water fountain in the middle. Soft uplighting on plants, and warm landscape lighting (2700–3000K). Do not add additional vegetation in the image. The Najdi lanterns on the building facade with soft flame glow. Ensure all materials feel realistic: mud-dried earthen walls, white plastered columns and crenellations, natural stone mosaic flooring, natural wood grain, stone textures, and micro-shadow details. Mood: serene, relaxing, luxurious, high-end resort in golden hour afternoon. Keep the same exact camera, Perfect alignment.</p>`
+                },
+                {
+                    title: "DAY TO NIGHT",
+                    thumbnail: "IMAGE/RELLIGHTING/DAYTONIGHT/DTN THUMBNAIL.png",
+                    images: ["IMAGE/RELLIGHTING/DAYTONIGHT/D1.png", "IMAGE/RELLIGHTING/DAYTONIGHT/D2.png"],
+                    prompt: `<p>Transform this aerial illustration into an ultra-photorealistic image while keeping the exact camera angle, composition, coastline, road layout, parks, buildings, pools, and tree placement unchanged.</p>
+                             <p>make this into a night render, no shadows,  Glowing yellow lights connect the central hub to the outer sectors, creating a luminous network of light across the landscape. Warm golden lights from buildings contrast against the walkways. The surrounding desert is dark and expansive with scattered vegetation and subtle grid patterns. The overall atmosphere is cinematic, and majestic, emphasizing vibrant golden nighttime lighting and strong contrast between illuminated districts and the surrounding darkness, dramatic warm–cool color contrast, photorealistic rendering, 8k clarity, soft bloom, volumetric light.</p>`
+                }
+            ],
+            "projects": [
+                {
+                    title: "2026 Greeting Posts Papercraft",
+                    thumbnail: "IMAGE/PROJECTS/GREETING POST/G THUMB.png",
+                    images: ["IMAGE/PROJECTS/GREETING POST/G1.png", "IMAGE/PROJECTS/GREETING POST/G2.png"],
+                    prompt: `<p>Create a photorealistic papercraft model of the provided building, rendered as a centered frontal elevation composed entirely from white paper with layered die-cut elements, delicate embossing, and precise, crisp edges. Maintain generous negative space and a clean high-key background.</p>
+                             <p>Illuminate the interior windows with warm amber light so the model appears to glow from within, and place subtle paper-cut contextual elements (for example palm silhouettes or building-appropriate foliage) at the sides. Emphasize layered depth—foreground entrance canopy, mid-level balconies, recessed windows—showing clear separation between planes and soft tactile paper texture.</p>
+                             <p>Use soft directional top/side lighting to create gentle natural shadows and a slight drop-shadow behind the structure; keep the composition symmetrical, slightly low-angle frontal, with shallow depth of field and high-resolution fine detail. Render with a calm, elegant, minimally whimsical atmosphere suitable for close-up inspection.</p>`
+                }
+            ],
+            "animation": [
+                {
+                    title: "CINEMATIC DOLLY IN",
+                    thumbnail: "IMAGE/ANIMATION/DOLLY IN/DOLLY1.gif",
+                    images: [
+                        "IMAGE/ANIMATION/DOLLY IN/DOLLY1.gif",
+                    ],
+                    prompt: "A slow and smooth camera glide forward from a semi-aerial perspective, moving through the center of a luxurious, multi-level outdoor retail plaza at the blue hour of sunset. The modern, curvilinear architecture is illuminated with warm, inviting interior lights. People are seen leisurely strolling along pristine walkways, chatting at outdoor cafes, and meandering between upscale boutiques. The camera captures the tranquil and sophisticated atmosphere, creating an overall mood of upscale elegance and peacefulness. Photorealistic, cinematic, 8K.",
+                    tools: "KLING VIDEO 2.5 TURBO",
+                    duration: "5 SECONDS"
+                },
+                {
+                    title: "CINEMATIC ORBIT",
+                    thumbnail: "IMAGE/ANIMATION/ORBITS/ORBITS1.gif",
+                    images: [
+                        "IMAGE/ANIMATION/ORBITS/ORBITS1.gif",
+                    ],
+                    prompt: "Slow orbit shot with subtle people movement, gentle water ripples, soft palm wind, and warm shifting sunset light. Cinematic and ultra-realistic.",
+                    tools: "KLING VIDEO 2.5 TURBO",
+                    duration: "5 SECONDS"
+                },
+                {
+                    title: "STATIC CAMERA",
+                    thumbnail: "IMAGE/ANIMATION/STATIC/STATIC1.gif",
+                    images: [
+                        "IMAGE/ANIMATION/STATIC/STATIC1.gif",
+                    ],
+                    prompt: "Camera is perfectly still as if fixed on a tripod, showing people slowly walking around and some of them will sit on the benches at the center. Everything else is perfectly still",
+                    tools: "KLING VIDEO 2.5 TURBO",
+                    duration: "10 SECONDS"
+                },
+                {
+                    title: "CHANGING TIME OF THE DAY",
+                    thumbnail: "IMAGE/ANIMATION/TIME/TIME.gif",
+                    images: [
+                        "IMAGE/ANIMATION/TIME/TIME.gif",
+                    ],
+                    prompt: "Cinematic Camera slowly dolly forward, trees and water move gently. Fire bowls flicker. The sky transitions smoothly into deeper sunset some blue tones",
+                    tools: "SEEDANCE V1.0",
+                    duration: "5 SECONDS"
+                },
+               {
+                    title: "LIGHT MOVEMENT",
+                    thumbnail: "IMAGE/ANIMATION/LIGHT/LIGHT1.gif",
+                    
+                    // 👇 Here are the options, each with their own tools and duration!
+                    options: [
+                        {
+                            name: "LIGHT MOVEMENT 1",
+                            images: ["IMAGE/ANIMATION/LIGHT/LIGHT1.gif"],
+                            prompt: "Timelapse sun moves, day to sunset, shadows shift gently across the walls and columns. Calm, ultra-realistic.",
+                            tools: "SEEDANCE V1.0",
+                            duration: "5 SECONDS"
+                        },
+                        {
+                            name: "LIGHT MOVEMENT 2",
+                            images: ["IMAGE/ANIMATION/LIGHT/LIGHT2.gif"],
+                            prompt: "Timelapse sunlight moves across columns and floor, shadows slide slowly, reflections brighten and fade on the water. Ultra-realistic and cinematic.",
+                            tools: "SEEDANCE V1.0",       // <-- Specific to Option 2
+                            duration: "5 SECONDS"         // <-- Specific to Option 2
+                        },
+                        {
+                            name: "LIGHT MOVEMENT 3",
+                            images: ["IMAGE/ANIMATION/LIGHT/LIGHT3.gif"],
+                            prompt: "Camera slowly dolly in, warm sunlight moves across the wall",
+                            tools: "SEEDANCE V1.0",       // <-- Specific to Option 2
+                            duration: "5 SECONDS"         // <-- Specific to Option 2
+                        },
+                    
+                    ]
+                },
+                {
+                    title: "WATER MOVEMENT",
+                    thumbnail: "IMAGE/ANIMATION/WATER/WATER1.gif",
+                    options: [
+                {
+                    name: "WATER 1",
+                    images: [
+                        "IMAGE/ANIMATION/WATER/WATER1.gif","IMAGE/ANIMATION/WATER/WATER2.gif"],
+                    prompt: "Subtle water movement with gentle ripples. Floating lanterns drift slightly and flicker softly. Warm reflections shimmering on the water surface.",
+                    tools: "SEEDANCE V1.0",
+                    duration: "5 SECONDS"
+                },
+                {
+                    name: "WATER 2",
+                    images: ["IMAGE/ANIMATION/WATER/WATER3.gif"],
+                    prompt: "Subtle sea water movement, gentle ripples rolling toward shore, calm surface, soft golden-hour reflections, slow natural motion.",
+                    tools: "SEEDANCE V1.0",
+                    duration: "5 SECONDS"}
+            ]
+                },
+                {
+                    title: "FABRIC MOVEMENT",
+                    thumbnail: "IMAGE/ANIMATION/FABRIC/FABRIC1.gif",
+                    images: [
+                        "IMAGE/ANIMATION/FABRIC/FABRIC1.gif",
+                    ],
+                    prompt: "Sheer fabric gently flows in warm light, subtle breeze, soft shadow movement.",
+                    tools: "KLING VIDEO 2.5 TURBO",
+                    duration: "5 SECONDS"
+                },
+                
+            ]
+        };
+
+    // 1. Initialize with your local defaults immediately
+let database = JSON.parse(JSON.stringify(defaultDatabase));
+let availableTags = Object.keys(database);
+let currentTag = "";
+let currentIndex = -1;
+let initialLoad = true; 
+
+// CAROUSEL VARIABLES
+let currentGalleryImages = [];
+let currentGalleryIndex = 0;
+let currentItemData = null;
+
+// 2. Sync REALTIME DATA + MERGE DEFAULTS
+const q = query(collection(db, "prompts"), orderBy("timestamp", "desc"));
+
+// 3. Add error handling to onSnapshot so it doesn't break silently
+onSnapshot(q, (snapshot) => {
+    // Reset to defaults before merging so we don't get duplicates on updates
+    database = JSON.parse(JSON.stringify(defaultDatabase));
+    availableTags = Object.keys(database);
+    
+    snapshot.forEach((doc) => {
+        const data = doc.data();
+        if (!database[data.tag]) {
+            database[data.tag] = [];
+            if (!availableTags.includes(data.tag)) availableTags.push(data.tag);
+        }
+        database[data.tag].unshift({ ...data, id: doc.id, isCloud: true });
+    });
+    
+    if (!initialLoad && currentTag && document.getElementById('results-page').classList.contains('active-page')) {
+        window.loadResults(currentTag);
+    }
+    initialLoad = false;
+}, (error) => {
+    // If Firebase fails, log it, but the local UI will still work!
+    console.error("Firebase connection failed. Loading local data only.", error);
+});
+
+        // UI NAVIGATION
+        window.hidePages = () => document.querySelectorAll('.page').forEach(p => p.classList.remove('active-page'));
+        
+        window.goHome = () => { 
+            hidePages(); 
+            document.getElementById('home-page').classList.add('active-page'); 
+            currentTag = ""; 
+            document.getElementById('search-input').value = ""; 
+            document.getElementById('suggestions').style.display = 'none';
+        };
+
+        window.goToSubmit = () => { hidePages(); document.getElementById('submit-page').classList.add('active-page'); };
+        
+        window.goResults = () => { 
+            if(currentTag) {
+                hidePages(); 
+                document.getElementById('results-page').classList.add('active-page'); 
+            } else {
+                window.goHome();
+            }
+        };
+
+        window.quickSearch = (tag) => { window.loadResults(tag); };
+
+        // LOAD RESULTS PAGE
+        window.loadResults = (tag) => {
+            currentTag = tag;
+            hidePages();
+            document.getElementById('results-page').classList.add('active-page');
+            document.getElementById('results-header').innerText = `RESULTS FOR: ${tag.toUpperCase()}`;
+            
+            const grid = document.getElementById('results-grid');
+            grid.innerHTML = "";
+            
+            if(database[tag] && database[tag].length > 0) {
+                database[tag].forEach((item, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'card';
+                    div.onclick = () => window.loadDetail(tag, index);
+                    
+                    div.innerHTML = `
+                        <div class="card-img-wrapper">
+                            <div class="card-badge">${tag}</div>
+                            <img src="${item.thumbnail}" alt="${item.title}">
+                        </div>
+                        <div class="card-title">${item.title}</div>
+                    `;
+                    grid.appendChild(div);
+                });
+            } else {
+                grid.innerHTML = `<div style="color:var(--text-secondary); grid-column: 1/-1;">No prompts found for "${tag}".</div>`;
+            }
+        };
+
+        // --- LOAD DETAIL PAGE ---
+       // --- LOAD DETAIL PAGE ---
+        window.loadDetail = (tag, index) => {
+            
+            // 🪄 THE FIX: Wipe the old image instantly so it never "ghosts"
+            document.getElementById('main-carousel-img').src = ""; 
+            
+            const data = database[tag][index];
+            currentIndex = index;
+            currentItemData = data; 
+            
+            hidePages();
+            document.getElementById('detail-page').classList.add('active-page');
+            document.getElementById('detail-title').innerText = data.title;
+            
+            const optionsContainer = document.getElementById('detail-options');
+            
+            if (data.options && data.options.length > 0) {
+                optionsContainer.style.display = 'flex';
+                optionsContainer.innerHTML = '';
+                
+                data.options.forEach((opt, idx) => {
+                    const btn = document.createElement('button');
+                    btn.className = 'option-btn';
+                    btn.innerText = opt.name || `Option ${idx + 1}`;
+                    btn.onclick = () => window.selectOption(idx);
+                    optionsContainer.appendChild(btn);
+                });
+                
+                window.selectOption(0);
+                
+            } else {
+                optionsContainer.style.display = 'none';
+                document.getElementById('detail-prompt').innerHTML = data.prompt;
+                
+                const metaContainer = document.getElementById('detail-meta');
+                metaContainer.innerHTML = "";
+                if(data.tools) metaContainer.innerHTML += `<strong>Tools:</strong> ${data.tools}<br>`;
+                if(data.duration) metaContainer.innerHTML += `<strong>Duration:</strong> ${data.duration}`;
+                
+                // ✅ THE FIX: Uses thumbnail if the gallery images array is missing or empty
+                currentGalleryImages = (data.images && data.images.length > 0) ? data.images : [data.thumbnail];
+                currentGalleryIndex = 0;
+                updateCarousel();
+            }
+
+            document.getElementById('admin-delete').style.display = data.isCloud ? 'block' : 'none';
+        };
+
+        // --- SELECT OPTION LOGIC ---
+        window.selectOption = (optIndex) => {
+            if (!currentItemData || !currentItemData.options) return;
+            const opt = currentItemData.options[optIndex];
+            
+            const buttons = document.querySelectorAll('.option-btn');
+            buttons.forEach((btn, idx) => {
+                if (idx === optIndex) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+
+            document.getElementById('detail-prompt').innerHTML = opt.prompt;
+            
+            let metaHtml = "";
+            const activeTools = opt.tools || currentItemData.tools; 
+            const activeDuration = opt.duration || currentItemData.duration;
+            
+            if(activeTools) metaHtml += `<strong>Tools:</strong> ${activeTools}<br>`;
+            if(activeDuration) metaHtml += `<strong>Duration:</strong> ${activeDuration}`;
+            document.getElementById('detail-meta').innerHTML = metaHtml;
+
+            // ✅ THE FIX: Ensures options also fallback to a thumbnail if they have no unique gallery
+            currentGalleryImages = (opt.images && opt.images.length > 0) ? opt.images : [opt.thumbnail || currentItemData.thumbnail];
+            currentGalleryIndex = 0;
+            updateCarousel(); 
+        };
+
+        window.changeImage = (direction) => {
+            if (direction > 0) {
+                document.documentElement.classList.remove('slide-prev');
+                document.documentElement.classList.add('slide-next');
+            } else {
+                document.documentElement.classList.remove('slide-next');
+                document.documentElement.classList.add('slide-prev');
+            }
+            currentGalleryIndex += direction;
+            if (currentGalleryIndex >= currentGalleryImages.length) currentGalleryIndex = 0;
+            if (currentGalleryIndex < 0) currentGalleryIndex = currentGalleryImages.length - 1;
+            updateCarousel();
+        };
+
+        window.goToImage = (index) => {
+            if (index > currentGalleryIndex) {
+                document.documentElement.classList.remove('slide-prev');
+                document.documentElement.classList.add('slide-next');
+            } else if (index < currentGalleryIndex) {
+                document.documentElement.classList.remove('slide-next');
+                document.documentElement.classList.add('slide-prev');
+            }
+            
+            currentGalleryIndex = index;
+            updateCarousel();
+        };
+
+        // --- CAROUSEL UPDATE WITH SMART ANIMATE ---
+        function updateCarousel() {
+            if (currentGalleryImages.length === 0) return;
+            
+            const performDOMUpdate = () => {
+                document.getElementById('main-carousel-img').src = currentGalleryImages[currentGalleryIndex];
+                
+                const prevBtn = document.querySelector('.carousel-btn.prev');
+                const nextBtn = document.querySelector('.carousel-btn.next');
+                if (currentGalleryImages.length <= 1) {
+                    prevBtn.style.display = 'none';
+                    nextBtn.style.display = 'none';
+                } else {
+                    prevBtn.style.display = 'flex';
+                    nextBtn.style.display = 'flex';
+                }
+
+                const dotsContainer = document.getElementById('carousel-dots');
+                dotsContainer.innerHTML = '';
+                if (currentGalleryImages.length > 1) {
+                    currentGalleryImages.forEach((_, idx) => {
+                        const dot = document.createElement('div');
+                        dot.className = 'dot' + (idx === currentGalleryIndex ? ' active' : '');
+                        dot.onclick = () => window.goToImage(idx);
+                        dotsContainer.appendChild(dot);
+                    });
+                }
+            };
+
+            // ✅ RESTORED: Native "Smart Animate" Slide Trigger
+            if (document.startViewTransition) {
+                document.startViewTransition(performDOMUpdate);
+            } else {
+                performDOMUpdate();
+            }
+        }
+
+        // COPY PROMPT BUTTON LOGIC
+        window.copyPrompt = (btnElement) => {
+            const promptContent = document.getElementById('detail-prompt').innerText;
+            navigator.clipboard.writeText(promptContent).then(() => {
+                const originalText = btnElement.innerText;
+                btnElement.innerText = "Copied!";
+                btnElement.classList.add('copied');
+                setTimeout(() => {
+                    btnElement.innerText = "Copy";
+                    btnElement.classList.remove('copied');
+                }, 2000);
+            });
+        };
+
+        // SEARCH BAR AUTOCUMPLETE
+        const searchInput = document.getElementById('search-input');
+        const suggestionsBox = document.getElementById('suggestions');
+
+        searchInput.addEventListener('input', function() {
+            const query = this.value.toLowerCase().trim();
+            suggestionsBox.innerHTML = '';
+            
+            if (query === '') { 
+                suggestionsBox.style.display = 'none'; 
+                return; 
+            }
+
+            const searchPool = availableTags.length > 0 ? availableTags : ['sketch', 'relighting', 'projects', 'animation'];
+            const matches = searchPool.filter(tag => tag.includes(query));
+
+            if (matches.length > 0) {
+                matches.forEach(match => {
+                    const div = document.createElement('div');
+                    div.className = 'suggestion-item';
+                    div.innerText = match;
+                    div.onclick = function() {
+                        searchInput.value = '';
+                        suggestionsBox.style.display = 'none';
+                        window.loadResults(match);
+                    };
+                    suggestionsBox.appendChild(div);
+                });
+                suggestionsBox.style.display = 'block';
+            } else { 
+                suggestionsBox.style.display = 'none'; 
+            }
+        });
+
+        searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                const val = e.target.value.toLowerCase().trim();
+                suggestionsBox.style.display = 'none';
+                if (database[val]) {
+                    window.loadResults(val);
+                } else {
+                    alert("Tag not found. Try one of the hints below!");
+                }
+            }
+        });
+
+        document.addEventListener('click', (e) => { 
+            if (!e.target.closest('.search-wrapper')) {
+                suggestionsBox.style.display = 'none'; 
+            }
+        });
+
+        // FORM HANDLING
+        window.toggleFormFields = () => {
+            const tag = document.getElementById('input-tag').value;
+            document.getElementById('group-animation').style.display = (tag === 'animation') ? 'grid' : 'none';
+        };
+
+       window.handleFormSubmit = async (e) => {
+            e.preventDefault();
+
+            // 1. CHECK THUMBNAIL SIZE (Max 300 KB)
+            const thumbFile = document.getElementById('input-thumbnail').files[0];
+            if (thumbFile && thumbFile.size > 300 * 1024) { // 300 KB in bytes
+                alert("Upload Error: The Thumbnail image must be smaller than 300 KB. Please compress it.");
+                return; // Stops the form from submitting
+            }
+
+            // 2. CHECK GALLERY IMAGES SIZE (Max 5 MB each)
+            const files = document.getElementById('input-image').files;
+            for (let i = 0; i < files.length; i++) {
+                if (files[i].size > 5 * 1024 * 1024) { // 5 MB in bytes
+                    alert(`Upload Error: The gallery image "${files[i].name}" is larger than 5 MB. Please compress it.`);
+                    return; // Stops the form from submitting
+                }
+            }
+
+            // If sizes are good, show loading screen and begin upload
+            const overlay = document.getElementById('loading-overlay');
+            overlay.style.display = 'flex';
+
+            try {
+                let thumbUrl = document.getElementById('input-thumbnail-url').value;
+                if (thumbFile) {
+                    const refT = ref(storage, `t/${Date.now()}`);
+                    await uploadBytes(refT, thumbFile);
+                    thumbUrl = await getDownloadURL(refT);
+                }
+
+                let galLinks = document.getElementById('input-gallery-links').value.split(',').map(s => s.trim()).filter(s => s !== "");
+                for (let file of files) {
+                    const refG = ref(storage, `g/${Date.now()}_${file.name}`);
+                    await uploadBytes(refG, file);
+                    galLinks.push(await getDownloadURL(refG));
+                }
+
+                const entry = {
+                    tag: document.getElementById('input-tag').value,
+                    title: document.getElementById('input-title').value,
+                    thumbnail: thumbUrl || (galLinks.length > 0 ? galLinks[0] : ""),
+                    images: galLinks,
+                    prompt: document.getElementById('input-prompt').value,
+                    tools: document.getElementById('input-tools').value || "",
+                    duration: document.getElementById('input-duration').value || "",
+                    timestamp: Date.now()
+                };
+
+                await addDoc(collection(db, "prompts"), entry);
+                alert("Upload Successful!");
+                document.getElementById('submit-form').reset();
+                window.goHome();
+            } catch (err) {
+                alert("Upload Error: " + err.message);
+            } finally {
+                overlay.style.display = 'none';
+            }
+        };
+
+        // DELETE LOGIC
+        window.deletePrompt = async () => {
+            const item = database[currentTag][currentIndex];
+            
+            if (!item.isCloud) {
+                alert("You cannot delete the default items.");
+                return;
+            }
+
+            if (!confirm("Delete permanently?")) return;
+            const pass = prompt("Admin Password:");
+            if (pass === "admin") {
+                await deleteDoc(doc(db, "prompts", item.id));
+                window.goResults(); 
+            } else {
+                alert("Incorrect password.");
+            }
+        };
+    </script>
+</body>
+</html>
